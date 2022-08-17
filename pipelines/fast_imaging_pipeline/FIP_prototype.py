@@ -229,8 +229,9 @@ def main():
 
     telapsed = time.time() - tstart
     print("\nElapsed time = ", telapsed, "sec")
-    time_per_snap = telapsed / len(mstime_unique)
-    print("Time per snap = ", time_per_snap, "sec")
+    if len(mstime_unique) > 1:
+        time_per_snap = telapsed / (len(mstime_unique)-1)
+        print("Time per snap = ", time_per_snap, "sec")
 
     # Write the results into the data cube FITS file data(ntimes, im_size, im_size)
     fits_image_filename = MSname[:-3] + "_" + str(im_size) + "p.fits"
