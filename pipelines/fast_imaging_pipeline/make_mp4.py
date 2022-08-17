@@ -43,7 +43,7 @@ def main():
         vmax = None
 
     if len(args) != 1:
-        print("Please specify a Measurement Set")
+        print("Please specify a FITS file")
         sys.exit()
     else:
         fitsfile = args[0].rstrip("/")

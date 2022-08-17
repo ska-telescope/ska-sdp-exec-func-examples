@@ -102,6 +102,12 @@ def main():
         help="Make inverts in a single precision (default = False)",
     )
     parser.add_option(
+        "--update_CORRECTED_DATA",
+        dest="update_CORRECTED_DATA",
+        default=False,
+        help="Update CORRECTED_DATA column with flagged and model-subtracted visibilities (default = False)",
+    )
+    parser.add_option(
         "--epsilon",
         dest="epsilon",
         default=1e-12,
@@ -116,6 +122,7 @@ def main():
 
     (options, args) = parser.parse_args()
     do_single = bool(options.do_single)
+    update_CORRECTED_DATA = bool(options.update_CORRECTED_DATA)
     epsilon = float(options.epsilon)
     do_w_stacking = bool(options.do_w_stacking)
     im_size = int(options.im_size)
@@ -128,21 +135,28 @@ def main():
         MSfile = args[0].rstrip("/")
 
     MSname = os.path.basename(MSfile)
+    print("Working with ", MSfile)
 
-    print(MSfile)
-
-    table_all = Table(MSfile, readonly=False)
+    if update_CORRECTED_DATA == True:
+        table_all = Table(MSfile, readonly=False)
+    else:
+        table_all = Table(MSfile)        
     ColNames = table_all.colnames()
-
     for col in ColNames:
         print(col)
 
     table_freq = Table(MSfile + "/SPECTRAL_WINDOW")
-
     for col in table_freq.colnames():
         print(col)
-
     freqs = table_freq.getcol("CHAN_FREQ")[0]
+    
+    table_source = Table(MSfile+"/SOURCE")
+    for col in table_source.colnames():
+        print(col)
+    direction = table_source.getcol("DIRECTION")
+    print("Coordinates:", direction[0])
+    source_name = table_source.getcol("NAME")
+    print(source_name)
 
     # Find unique times and their indices
     mstime = table_all.getcol("TIME")
@@ -166,7 +180,7 @@ def main():
             model_snap = table_all.getcol(
                 "MODEL_DATA", istart, number_of_rows_to_read
             ).astype(np.complex128)
-        except:
+        except RuntimeError:
             model_snap = np.zeros(vis_snap.shape)
 
         uvw_snap = table_all.getcol("UVW", istart, number_of_rows_to_read)
@@ -205,9 +219,13 @@ def main():
         dirty_image_cube[i, :, :] = dirty_image
 
         # Write flagged data-model data back into "CORRECTED_DATA"
-        corr_vis = vis_snap - model_snap
-        corr_vis[np.where(flags_snap > 0)] = 0  # Apply flags.
-        table_all.putcol("CORRECTED_DATA", corr_vis, istart, number_of_rows_to_read)
+        if update_CORRECTED_DATA == True:
+            corr_vis = vis_snap - model_snap
+            corr_vis[np.where(flags_snap > 0)] = 0  # Apply flags.
+            try:
+                table_all.putcol("CORRECTED_DATA", corr_vis, istart, number_of_rows_to_read)
+            except RuntimeError:
+                print("CORRECTED_DATA does not exist in the MS, can not update the column!")
 
     telapsed = time.time() - tstart
     print("\nElapsed time = ", telapsed, "sec")
@@ -224,22 +242,25 @@ def main():
     # Create fits file header
     nx = im_size
     ny = im_size
-    cdelt = pixel_size_arcsec / 3600.0
-    tstart1 = mstime_unique[0]
+    cdelt = pixel_size_arcsec/3600./180.*np.pi # in rad
+    tstart1 = mstime_unique[0] 
     ntime1 = mstime_unique.shape[0]
     if ntime1 != 1:
-        tdelt1 = (mstime_unique[-1] - tstart1) / (ntime1 - 1)
+        tdelt1 = (mstime_unique[-1] - tstart1)/(ntime1-1)
     else:
-        tdelt1 = 1.0
-    w.wcs.crpix = [nx, ny, 1.0]
+        tdelt1 = 1.0	
+    w.wcs.crpix = [nx/2, ny/2, 1.0]
     w.wcs.cdelt = np.array([-cdelt, cdelt, tdelt1])
-    w.wcs.crval = [180.0, 0.0, tstart1]
+
+    w.wcs.crval = [direction[0][0], direction[0][1], tstart1]
+    w.wcs.cunit = ["rad", "rad", "s"]
     w.wcs.ctype = ["RA---TAN", "DEC--TAN", "TIME"]
-    w.wcs.cunit = ["deg", "deg", "s"]
+
     header = w.to_header()
     hdumodel = fits.PrimaryHDU(data=dirty_image_cube.astype(np.float32), header=header)
-    hdumodel.header["BUNIT"] = "K"
-
+    hdumodel.header['BUNIT'] = 'K'
+    hdumodel.header['FREQ'] = np.mean(freqs)
+    hdumodel.header['OBJECT'] = source_name[0]
     hdumodel.writeto(fits_image_filename, overwrite=True)
 
 
