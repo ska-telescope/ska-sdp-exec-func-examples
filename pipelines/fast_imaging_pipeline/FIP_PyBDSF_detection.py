@@ -7,10 +7,27 @@ from optparse import OptionParser
 import numpy as np
 from astropy.io import fits
 from copy import deepcopy
-import bdsf
 import time
 import os
 import glob
+
+# If SciPy is too new for PyBDSF version installed, then apply this fix
+try:
+    import bdsf
+except ImportError:
+    import  scipy.signal.signaltools
+
+    def _centered(arr, newsize):
+        # Return the center newsize portion of the array.
+        newsize = np.asarray(newsize)
+        currsize = np.array(arr.shape)
+        startind = (currsize - newsize) // 2
+        endind = startind + newsize
+        myslice = [slice(startind[k], endind[k]) for k in range(len(endind))]
+        return arr[tuple(myslice)]
+
+    scipy.signal.signaltools._centered = _centered
+    import bdsf
 
 
 def main():
@@ -147,8 +164,6 @@ def main():
             sdata = hcat[1].data[j]
             print(sdata[0], sdata[2], sdata[4], sdata[6], sdata[6]/sdata[7])
             detections.append(sdata)    
-
-    detections1 = np.asarray(detections)
     
 if __name__ == "__main__":
 
