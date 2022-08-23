@@ -1,0 +1,38 @@
+#Do not install casacore in virtual env
+# Use conda to have a separate environment
+conda create --name FIP-test  python=3.8
+conda activate FIP-test
+conda install -c conda-forge python-casacore
+conda install -c conda-forge cupy
+conda install pip
+pip install -r requirements.txt
+
+# Install sdp-func library: As in https://developer.skao.int/projects/ska-sdp-func/en/latest/
+# you need cmake, you don't have it: "sudo apt  install cmake"
+Get the right version, which we know works.
+wget https://gitlab.com/ska-telescope/sdp/ska-sdp-func/-/archive/f264c46cba7a985c5da573fb4e738ea298d3b898/ska-sdp-func-f264c46cba7a985c5da573fb4e738ea298d3b898.tar.gz
+tar -xf ska-sdp-func-f264c46cba7a985c5da573fb4e738ea298d3b898.tar.gz && mv ska-sdp-func-f264c46cba7a985c5da573fb4e738ea298d3b898 ska-sdp-func
+
+cd ska-sdp-func
+mkdir build
+cd build
+cmake ..
+make -j8
+cd ..
+pip3 install .
+
+# Use "conda list" to see all packages are installed
+
+# To test it:
+cd ..
+mkdir fits
+mkdir pic
+
+# Run the example:
+python3 FIP_example.py /mnt/FIP/1636091170_sdp_l0_1024ch_MTP0013_scan8.ms
+
+# To deactivate conda environment:
+conda deactivate
+
+# Delete fits files
+rm fits/*
