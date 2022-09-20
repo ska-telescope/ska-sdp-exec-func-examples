@@ -154,7 +154,7 @@ RUN pip3 install wheel
 
 # Install cupy with wheels
 # based on https://hub.docker.com/r/cupy/cupy/
-RUN pip3 install --no-cache-dir -f https://github.com/cupy/cupy/releases/v11.0.0rc1 "cupy-cuda11x[all]==11.0.0rc1"
+RUN pip3 install --no-cache-dir -f https://github.com/cupy/cupy/releases/v11.0.0rc1 "cupy-cuda11x[all]==11.0.0"
 
 RUN pip3 install -r requirements.txt
 
