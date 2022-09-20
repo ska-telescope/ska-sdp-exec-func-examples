@@ -66,7 +66,7 @@ To be able to start the example, build the images (thus uses the Dockerfile file
 sudo docker-compose build
 ````
 
-Then start the containers
+Make sure that the directory containing the measurement set is mounted to the generator, by default this is assumed to be ``/mnt/FIP/``. Then start the containers
 ````
 sudo docker-compose up -d
 ````
