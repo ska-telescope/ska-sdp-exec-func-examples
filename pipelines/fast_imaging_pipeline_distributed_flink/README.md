@@ -60,7 +60,10 @@ sudo docker run --rm --gpus all nvidia/cuda:11.0.3-base-ubuntu20.04 nvidia-smi
 chmod +x docker-entrypoint.sh
 ```
 **It may be useful to clear the ``consumer/fits`` directory if the pipeline has been ran earlier: ``rm -r -f ./consumer/fits/*``**
-
+As the git repository does not track empty directories, make ``consumer/fits`` if it does not already exist.
+```
+mkdir consumer/fits
+```
 To be able to start the example, build the images (thus uses the Dockerfile files specified in docker-compose.yml and may take up to 6 min):
 ````commandline
 sudo docker-compose build
