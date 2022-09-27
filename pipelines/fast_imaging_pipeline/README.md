@@ -6,3 +6,4 @@ The following example scripts are in the folder related to the Fast Imaging Pipe
 
 3. FIP_PyBDSF_detection.py - to run BDSF point source detection based on the data cube difference frames
 
+4. FIP_cat_processing.py - to perform a cluster analysis to fing the detections related to the different transient sources 
