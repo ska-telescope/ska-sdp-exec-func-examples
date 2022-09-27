@@ -125,10 +125,12 @@ This is purely for illustrative purposes, not a part of the processing pipeline 
 To generate png files, enter the functions directory and make a ``pics`` directory
 
 ```
-cd functions
+cd development
 mkdir pics
 ```
 Now in the ``functions`` directory run the ``flink_make_mp4.py`` script:
+
+But before make sure that you have the ``natsort`` python module installed, either using a virtual environment or just using pip.
 ```
 python3 flink_make_mp4.py ../consumer/fits
 ```
