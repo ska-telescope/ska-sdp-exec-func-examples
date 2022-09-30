@@ -1,0 +1,8 @@
+numpy
+astropy
+matplotlib
+pybase64
+python-casacore
+smart_open
+bdsf
+scipy

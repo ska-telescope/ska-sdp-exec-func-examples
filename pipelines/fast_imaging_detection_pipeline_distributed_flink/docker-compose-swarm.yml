@@ -1,0 +1,234 @@
+################################################################################
+#  Licensed to the Apache Software Foundation (ASF) under one
+#  or more contributor license agreements.  See the NOTICE file
+#  distributed with this work for additional information
+#  regarding copyright ownership.  The ASF licenses this file
+#  to you under the Apache License, Version 2.0 (the
+#  "License"); you may not use this file except in compliance
+#  with the License.  You may obtain a copy of the License at
+#
+#      http://www.apache.org/licenses/LICENSE-2.0
+#
+#  Unless required by applicable law or agreed to in writing, software
+#  distributed under the License is distributed on an "AS IS" BASIS,
+#  WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+#  See the License for the specific language governing permissions and
+# limitations under the License.
+################################################################################
+
+version: '3.9'
+services:
+  jobmanager:
+    build: .
+    image: 127.0.0.1:5000/pyflink:1.14.5-scala_2.11
+    deploy:
+      placement:
+        constraints:
+          - node.role==manager
+    volumes:
+      - .:/opt/example-pipeline
+    hostname: "jobmanager"
+    expose:
+      - "6123"
+    ports:
+      - "8081:8081"
+    command: jobmanager
+    environment:
+      - |
+        FLINK_PROPERTIES=
+        jobmanager.rpc.address: jobmanager
+        jobmanager.memory.heap.size: 6gb
+        jobmanager.memory.process.size: 8gb
+        jobmanager.memory.jvm-overhead.max: 2gb
+  taskmanager:
+    image: 127.0.0.1:5000/pyflink:1.14.5-scala_2.11
+    expose:
+      - "6121"
+      - "6122"
+    depends_on:
+      - jobmanager
+    command: taskmanager
+    environment:
+      - |
+        FLINK_PROPERTIES=
+        jobmanager.rpc.address: jobmanager
+        taskmanager.numberOfTaskSlots: 1
+        taskmanager.memory.process.size: 26 gb
+        taskmanager.memory.flink.size: 22 gb
+        taskmanager.memory.managed.size: 4 gb
+        taskmanager.memory.task.heap.size: 10 gb
+        taskmanager.memory.jvm-metaspace.size: 1 gb
+        taskmanager.memory.task.off-heap.size: 3 gb
+        taskmanager.memory.jvm-overhead.max: 5 gb
+        taskmanager.memory.network.max: 5 gb
+        taskmanager.network.memory.buffer-debloat.enabled: true
+        taskmanager.memory.segment-size: 32 mb
+        taskmanager.network.memory.buffer-debloat.threshold-percentages: 100
+        taskmanager.network.memory.buffer-debloat.period: 1
+        taskmanager.network.memory.buffer-debloat.samples: 10
+        taskmanager.network.retries: -1
+    links:
+      - jobmanager:jobmanager
+  zookeeper:
+    image: wurstmeister/zookeeper:3.4.6
+    ports:
+      - "2181:2181"
+  kafka:
+    image: wurstmeister/kafka:2.12-2.2.1
+    deploy:
+      placement:
+        constraints:
+          - node.role==manager
+    ports:
+      - "9092:9092"
+    depends_on:
+      - zookeeper
+    environment:
+      HOSTNAME_COMMAND: "route -n | awk '/UG[ \t]/{print $$2}'"
+      KAFKA_ZOOKEEPER_CONNECT: zookeeper:2181
+      KAFKA_MESSAGE_MAX_BYTES: "2147483647"
+      KAFKA_REPLICA_FETCH_MAX_BYTES: "2147483647"
+      KAFKA_SOCKET_REQUEST_MAX_BYTES: "2147483647"
+      KAFKA_TRANSACTION_STATE_LOG_SEGMENT_BYTES: "2147483647"
+      KAFKA_LOG_SEGMENT_BYTES: "2147483647"
+      KAFKA_FETCH_MESSAGE_MAX_BYTES: "2147483647"
+      KAFKA_HEAP_OPTS: "-Xms8g -Xmx8g"
+      KAFKA_CREATE_TOPICS: "signal_in:2:1, signal_out:2:1, signal_in_src:2:1, signal_out_src:2:1"
+      KAFKA_LISTENERS: INTERNAL://0.0.0.0:9092
+      KAFKA_ADVERTISED_LISTENERS: INTERNAL://kafka:9092
+      KAFKA_LISTENER_SECURITY_PROTOCOL_MAP: INTERNAL:PLAINTEXT
+      KAFKA_INTER_BROKER_LISTENER_NAME: INTERNAL
+    volumes:
+      - /var/run/docker.sock:/var/run/docker.sock
+  generator:
+    build:
+      context: .
+      dockerfile: ./generator/Dockerfile
+    image: 127.0.0.1:5000/generator:1.0
+    deploy:
+      placement:
+        constraints:
+          - node.role==manager
+    depends_on:
+      - kafka
+    volumes:
+      - type: bind
+        source: /mnt/FIP/
+        target: /mnt/FIP/
+  consumer:
+    build:
+      context: .
+      dockerfile: ./consumer/Dockerfile
+    image: 127.0.0.1:5000/consumer:1.0
+    deploy:
+      placement:
+        constraints:
+          - node.role==manager
+    depends_on:
+      - kafka
+    volumes:
+      - type: bind
+        source: ./consumer/fits
+        target: /usr/src/consumer/fits
+  consumer_sources:
+    build:
+      context: .
+      dockerfile: ./consumer_sources/Dockerfile
+    image: 127.0.0.1:5000/consumer_sources:1.0
+    deploy:
+      placement:
+        constraints:
+          - node.role==manager
+    depends_on:
+      - kafka
+    volumes:
+      - type: bind
+        source: ./consumer_sources/catfits
+        target: /usr/src/consumer_sources/catfits
+  namenode:
+    build: ./namenode
+    image: 127.0.0.1:5000/namenode:1.0
+    deploy:
+      placement:
+        constraints:
+          - node.role==manager
+    container_name: namenode
+    volumes:
+      - hadoop_namenode:/hadoop/dfs/name
+    environment:
+      - CLUSTER_NAME=test
+    env_file:
+      - ./hadoop.env
+    ports:
+      - "9870:9870"
+
+  resourcemanager:
+    build: ./resourcemanager
+    image: 127.0.0.1:5000/resourcemanager:1.0
+    deploy:
+      restart_policy:
+        condition: on-failure
+      placement:
+        constraints:
+          - node.role==manager
+    container_name: resourcemanager
+    restart: on-failure
+    depends_on:
+      - namenode
+      - datanode
+    env_file:
+      - ./hadoop.env
+    ports:
+      - "8089:8088"
+
+  historyserver:
+    build: ./historyserver
+    image: 127.0.0.1:5000/historyserver:1.0
+    deploy:
+      restart_policy:
+        condition: on-failure
+      placement:
+        constraints:
+          - node.role==manager
+    container_name: historyserver
+    depends_on:
+      - namenode
+      - datanode
+    volumes:
+      - hadoop_historyserver:/hadoop/yarn/timeline
+    env_file:
+      - ./hadoop.env
+    ports:
+      - "8188:8188"
+
+  nodemanager:
+    build: ./nodemanager
+    image: 127.0.0.1:5000/nodemanager:1.0
+    container_name: nodemanager1
+    depends_on:
+      - namenode
+      - datanode
+    env_file:
+      - ./hadoop.env
+    ports:
+      - "8042:8042"
+
+  datanode:
+    build: ./datanode
+    image: 127.0.0.1:5000/datanode:1.0
+    container_name: datanode
+    depends_on:
+      - namenode
+    volumes:
+      - hadoop_datanode:/hadoop/dfs/data
+    env_file:
+      - ./hadoop.env
+
+volumes:
+  hadoop_namenode:
+  hadoop_datanode:
+  hadoop_historyserver:
+
+networks:
+  default:
+    attachable: true
