@@ -22,7 +22,7 @@ Out of the above steps, only step 2, performs the actual Fast Image Processing u
 ## Imaging Pipeline
 The fast imaging pipeline is implemented using compartmentalised Python functions ``development/python_pipeline_implementation.py``. For illustrative purposes, and as a test bed to support further development, these functions are used to implement the same processing in Python as is done in the pipelined deployed using Flink.
 
-This example and testbed of the pipeline and the actual Flink pipeline, uses the functions as in ***Fig. 2.2***.
+This example and testbed of the pipeline, and the actual Flink pipeline, uses the functions as in ***Fig. 2.2***.
 ![alt text](images/FIP_process_functions.png)         
 ***Fig. 2.2** Overview of the Fast Imaging Pipeline in this prototype.*
 
