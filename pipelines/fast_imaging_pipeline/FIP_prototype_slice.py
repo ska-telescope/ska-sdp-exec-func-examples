@@ -119,14 +119,12 @@ def main():
         default=True,
         help="To perform w-stacking gridding (default = True)",
     )
-
     parser.add_option(
         "--time_idx_start",
         dest="time_idx_start",
         default=0,
         help="Starting snapshot index (default = 0)",
     )
-
     parser.add_option(
         "--time_idx_end",
         dest="time_idx_end",
@@ -178,17 +176,21 @@ def main():
     mstime = table_all.getcol("TIME")
     mstime_unique, time_idx = np.unique(mstime, return_index=True)
 
-    tstart = time.time()
-    dirty_image_cube = np.zeros((len(mstime_unique), im_size, im_size))
     # Reset the first snapshot index if required
     if time_idx_start < 0:
         time_idx_start = 0
     # Reset the last snapshot index if required
-    if time_idx_end == -1 or time_idx_end >= len(mstime_unique):
+    if time_idx_end < 0 or time_idx_end >= len(mstime_unique):
         time_idx_end = len(mstime_unique) - 1
+
+    tstart = time.time()
+    image_cube_nz = int(time_idx_end - time_idx_start + 1)
+    dirty_image_cube = np.zeros((image_cube_nz, im_size, im_size))
+
     # Loop over unique times and create inverts for each snapshot
     #for i in range(len(mstime_unique)):
     for i in range(time_idx_start, time_idx_end+1):
+        image_cube_i = i - time_idx_start
         istart = time_idx[i]
         if i != len(mstime_unique) - 1:
             iend = time_idx[i + 1] - 1
@@ -239,7 +241,7 @@ def main():
         norm = np.sum(weight_snap) / 4
         dirty_image = dirty_image / norm
         dirty_image = (np.fliplr(dirty_image)).T
-        dirty_image_cube[i, :, :] = dirty_image
+        dirty_image_cube[image_cube_i, :, :] = dirty_image
 
         # Write flagged data-model data back into "CORRECTED_DATA"
         if update_CORRECTED_DATA == True:
@@ -252,12 +254,12 @@ def main():
 
     telapsed = time.time() - tstart
     print("\nElapsed time = ", telapsed, "sec")
-    if len(mstime_unique) > 1:
-        time_per_snap = telapsed / (len(mstime_unique)-1)
+    if image_cube_nz > 1:
+        time_per_snap = telapsed / (image_cube_nz -1)
         print("Time per snap = ", time_per_snap, "sec")
 
     # Write the results into the data cube FITS file data(ntimes, im_size, im_size)
-    fits_image_filename = MSname[:-3] + "_" + str(im_size) + "p.fits"
+    fits_image_filename = MSname[:-3] + "_" + str(im_size) + "p_t" + str(time_idx_start) + "-" + str(time_idx_end) + ".fits"
 
     # Create a new WCS object.  The number of axes must be set
     # from the start
@@ -267,10 +269,10 @@ def main():
     nx = im_size
     ny = im_size
     cdelt = pixel_size_arcsec/3600./180.*np.pi # in rad
-    tstart1 = mstime_unique[0] 
-    ntime1 = mstime_unique.shape[0]
+    tstart1 = mstime_unique[time_idx_start] 
+    ntime1 = image_cube_nz
     if ntime1 != 1:
-        tdelt1 = (mstime_unique[-1] - tstart1)/(ntime1-1)
+        tdelt1 = (mstime_unique[time_idx_end] - tstart1)/(ntime1-1)
     else:
         tdelt1 = 1.0	
     w.wcs.crpix = [nx/2, ny/2, 1.0]
