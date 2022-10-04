@@ -1,0 +1,4 @@
+numpy
+python-casacore
+pybase64
+confluent_kafka

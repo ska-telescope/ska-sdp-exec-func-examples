@@ -1,0 +1,7 @@
+numpy
+astropy
+matplotlib
+pybase64
+python-casacore
+natsort
+Pillow

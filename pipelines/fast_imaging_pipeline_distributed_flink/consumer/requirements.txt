@@ -1,0 +1,4 @@
+pybase64
+numpy
+kafka-python
+
