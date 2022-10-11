@@ -10,24 +10,11 @@ from copy import deepcopy
 import time
 import os
 import glob
+import logging
 
-# If SciPy is too new for PyBDSF version installed, then apply this fix
-try:
-    import bdsf
-except ImportError:
-    import  scipy.signal.signaltools
-
-    def _centered(arr, newsize):
-        # Return the center newsize portion of the array.
-        newsize = np.asarray(newsize)
-        currsize = np.array(arr.shape)
-        startind = (currsize - newsize) // 2
-        endind = startind + newsize
-        myslice = [slice(startind[k], endind[k]) for k in range(len(endind))]
-        return arr[tuple(myslice)]
-
-    scipy.signal.signaltools._centered = _centered
-    import bdsf
+import AegeanTools
+from AegeanTools.source_finder import SourceFinder
+from AegeanTools import __citation__, __date__, __version__
 
 
 def main():
@@ -36,8 +23,8 @@ def main():
     parser.add_option(
         "--folder_cat", 
         dest="folder_cat", 
-        default="BDSF_result", 
-        help="A folder to keep the catalogs (default = ./BDSF_result)"
+        default="Aegean_result", 
+        help="A folder to keep the catalogs (default = ./Aegean_result)"
     )
     parser.add_option(
         "--bmaj",
@@ -64,18 +51,6 @@ def main():
         help="central frequency, Hz (default = 1.2e9 Hz)",
     )
     parser.add_option(
-        "--thresh_isl",
-        dest="thresh_isl",
-        default=3.0,
-        help="A threshdold for the pixel islands, in noise rms units (PyBDSF parameter, default = 3.0)",
-    )
-    parser.add_option(
-        "--thresh_pix",
-        dest="thresh_pix",
-        default=5.0,
-        help="A threshdold for the source detection, in noise rms units (PyBDSF parameter, default = 5.0)",
-    )
-    parser.add_option(
         "--make_diff_maps",
         dest="make_diff_maps",
         default=True,
@@ -88,8 +63,6 @@ def main():
     bmin = float(options.bmin)
     bpa = float(options.bpa)
     freq = float(options.freq)
-    thresh_isl = float(options.thresh_isl)
-    thresh_pix = float(options.thresh_pix)
     make_diff_maps = options.make_diff_maps
 
     if len(args) != 1:
@@ -107,6 +80,15 @@ def main():
         os.mkdir(folder_cat)
     except FileExistsError:
         print(folder_cat, "exists")
+        
+    # Logging configuration
+    # configure logging
+    logging.basicConfig(format="%(module)s:%(levelname)s %(message)s")
+    log = logging.getLogger("Aegean")
+    logging_level = logging.INFO
+    log.setLevel(logging_level)
+    log.info("This is Aegean {0}-({1})".format(__version__, __date__))
+    log.info("Run Aegean source finder in a script")    
 
     h=fits.open(fitsfile)
     h[0].header['BPA']=bpa # stupid Miriad
@@ -143,12 +125,17 @@ def main():
             catprefix = os.path.join(folder_cat,catprefix)
             filename=catprefix+'.fits'
             hc.writeto(filename,overwrite=True)
-            img=bdsf.process_image(filename, thresh_isl=thresh_isl, thresh_pix=thresh_pix, rms_box=(160,50), rms_map=True, mean_map='zero', ini_method='intensity', adaptive_rms_box=True, adaptive_thresh=150, rms_box_bright=(60,15), group_by_isl=False, group_tol=10.0, flagging_opts=True, flag_maxsize_fwhm=0.5,advanced_opts=True, ncores=64, blank_limit=None)
-            img.write_catalog(outfile=catprefix +'.cat.fits',catalog_type='srl',format='fits',correct_proj='True',clobber='True')
-            data_prev = data_tmp
-
-            if os.path.exists(catprefix +'.cat.fits') == False:
+            outcat = catprefix +'.cat.dat'
+            outfile=open(outcat, 'w')
+            sf = SourceFinder(log=log)
+            found = sf.find_sources_in_image(filename, outfile=outfile)
+                                        
+            if len(found) == 0:
+                log.info("No sources found in image")
+                os.remove(outcat)
                 os.remove(filename)
+
+            data_prev = data_tmp
 
         elapsed = time.time() - tstart
     else:
@@ -162,10 +149,14 @@ def main():
             catprefix = os.path.join(folder_cat,catprefix)
             filename=catprefix+'.fits'
             hc.writeto(filename,overwrite=True)
-            img=bdsf.process_image(filename, thresh_isl=thresh_isl, thresh_pix=thresh_pix, rms_box=(160,50), rms_map=True, mean_map='zero', ini_method='intensity', adaptive_rms_box=True, adaptive_thresh=150, rms_box_bright=(60,15), group_by_isl=False, group_tol=10.0, flagging_opts=True, flag_maxsize_fwhm=0.5,advanced_opts=True, ncores=64, blank_limit=None)
-            img.write_catalog(outfile=catprefix +'.cat.fits',catalog_type='srl',format='fits',correct_proj='True',clobber='True')
-
-            if os.path.exists(catprefix +'.cat.fits') == False:
+            outcat = catprefix +'.cat.dat'
+            outfile=open(outcat, 'w')
+            sf = SourceFinder(log=log)
+            found = sf.find_sources_in_image(filename, outfile=outfile)
+                                        
+            if len(found) == 0:
+                log.info("No sources found in image")
+                os.remove(outcat)
                 os.remove(filename)
 
         elapsed = time.time() - tstart
