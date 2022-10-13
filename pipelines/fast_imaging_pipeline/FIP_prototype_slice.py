@@ -18,6 +18,8 @@ import time
 
 import casacore.tables.table as Table
 from ska_sdp_func import GridderUvwEsFft as Gridder
+from ska_sdp_func.weighting import get_uv_range, uniform_weights
+
 
 from astropy.io import fits
 from astropy import wcs
@@ -131,16 +133,26 @@ def main():
         default=-1,
         help="Ending snapshot index (default = -1)",
     )
+    parser.add_option(
+        "--weighting",
+        dest="weighting",
+        default="natural",
+        help="Weighting scheme, natural or uniform (default = weighting)",
+    )
 
     (options, args) = parser.parse_args()
-    do_single = bool(options.do_single)
-    update_CORRECTED_DATA = bool(options.update_CORRECTED_DATA)
+    do_single = options.do_single
+    update_CORRECTED_DATA = options.update_CORRECTED_DATA
     epsilon = float(options.epsilon)
-    do_w_stacking = bool(options.do_w_stacking)
+    do_w_stacking = options.do_w_stacking
     im_size = int(options.im_size)
     pixel_size_arcsec = float(options.pixel_size_arcsec)
     time_idx_start = int(options.time_idx_start)
     time_idx_end = int(options.time_idx_end)
+    weighting = options.weighting
+    if weighting != "natural" and weighting != "uniform":
+        print("Weighing scheme", weighting, "is neither natural nor uniform, reverting to natural")
+        weighting = "natural"
 
     if len(args) != 1:
         print("Please specify a Measurement Set")
@@ -186,6 +198,15 @@ def main():
     tstart = time.time()
     image_cube_nz = int(time_idx_end - time_idx_start + 1)
     dirty_image_cube = np.zeros((image_cube_nz, im_size, im_size))
+    
+    if weighting == "uniform":
+        # Read global UVW array
+        uvw_all = table_all.getcol("UVW")
+        print(uvw_all.shape)
+        # Find global UV range for all snapshots
+        max_abs_uv = get_uv_range(uvw_all[np.newaxis,:,:], freqs)
+        # Free UVW array memory
+        uvw_all = None
 
     # Loop over unique times and create inverts for each snapshot
     #for i in range(len(mstime_unique)):
@@ -209,7 +230,13 @@ def main():
             model_snap = np.zeros(vis_snap.shape)
 
         uvw_snap = table_all.getcol("UVW", istart, number_of_rows_to_read)
-        weight_snap = np.ones(vis_snap.shape)
+        if weighting == "natural":
+            weight_snap = np.ones(vis_snap.shape)
+        else: # weigthing = "uniform"
+            weight_snap = np.zeros(vis_snap.shape)
+            grid_uv = np.zeros((im_size, im_size))
+            uniform_weights(uvw_snap[np.newaxis,:,:], freqs, max_abs_uv, grid_uv, weight_snap[np.newaxis,:,:,:])
+    
         flags_snap = table_all.getcol("FLAG", istart, number_of_rows_to_read)
 
         print(
@@ -259,7 +286,7 @@ def main():
         print("Time per snap = ", time_per_snap, "sec")
 
     # Write the results into the data cube FITS file data(ntimes, im_size, im_size)
-    fits_image_filename = MSname[:-3] + "_" + str(im_size) + "p_t" + str(time_idx_start) + "-" + str(time_idx_end) + ".fits"
+    fits_image_filename = MSname[:-3] + "_" + str(im_size) + "p_t" + str(time_idx_start) + "-" + str(time_idx_end) + "_" + weighting + ".fits"
 
     # Create a new WCS object.  The number of axes must be set
     # from the start

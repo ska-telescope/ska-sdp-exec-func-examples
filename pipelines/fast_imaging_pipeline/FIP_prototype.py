@@ -121,10 +121,10 @@ def main():
     )
 
     (options, args) = parser.parse_args()
-    do_single = bool(options.do_single)
-    update_CORRECTED_DATA = bool(options.update_CORRECTED_DATA)
+    do_single = options.do_single
+    update_CORRECTED_DATA = options.update_CORRECTED_DATA
     epsilon = float(options.epsilon)
-    do_w_stacking = bool(options.do_w_stacking)
+    do_w_stacking = options.do_w_stacking
     im_size = int(options.im_size)
     pixel_size_arcsec = float(options.pixel_size_arcsec)
 
