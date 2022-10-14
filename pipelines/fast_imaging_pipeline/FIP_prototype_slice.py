@@ -137,7 +137,7 @@ def main():
         "--weighting",
         dest="weighting",
         default="natural",
-        help="Weighting scheme, natural or uniform (default = weighting)",
+        help="Weighting scheme, natural or uniform (default = natural)",
     )
 
     (options, args) = parser.parse_args()
